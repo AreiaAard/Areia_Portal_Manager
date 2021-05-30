@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<muclient>
+<plugin
+   name="Areia_Portal_Manager"
+   author="Areia"
+   id="8e5f000d72c9f11a6debbc6b"
+   language="Lua"
+   purpose="Streamline use of chaos, limited-use, and other portals"
+   save_state="n"
+   date_written="2021-05-30 07:00:00"
+   requires="5.06"
+   version="0.00"
+   >
+<description trim="y">
+<![CDATA[
+]]>
+</description>
+
+</plugin>
+
+<include name="constants.lua"/>
+
+
+
+<aliases>
+</aliases>
+
+
+
+<triggers>
+</triggers>
+
+
+
+<script>
+<![CDATA[
+require "commas"
+require "copytable"
+require "gmcphelper"
+require "tprint"
+require "var"
+require "wait"
+dofile(GetInfo(60) .. "aardwolf_colors.lua")
+
+
+
+--------------------------------------------------
+-- DBHandler
+--------------------------------------------------
+
+DBHandler = {}
+
+function DBHandler.initialize()
+    DBHandler.db = nil
+end
+]]>
+</script>
+
+
+
+<script>
+<![CDATA[
+--------------------------------------------------
+-- Utility
+--------------------------------------------------
+
+Utility = {}
+
+function Utility.initialize()
+    local initializers = {
+        DBHandler.initialize,
+    }
+    for _, initializer in ipairs(initializers) do
+        initializer()
+    end
+end
+
+function Utility.deinitialize()
+end
+
+function Utility.print(str)
+    -- Lets us use Aard color codes in our ColourNotes
+    AnsiNote(stylesToANSI(ColoursToStyles(string.format("@w%s@w", str))))
+end
+
+function Utility.plugin_msg(str, ...)
+    Utility.print(string.format("[@YPortal_Manager@w]: %s", str))
+    for _, msg in ipairs{...} do
+        Utility.second_msg(msg)
+    end
+end
+
+function Utility.second_msg(str)
+    Utility.print(string.format("                  %s", str))
+end
+
+function Utility.display_greeting()
+end
+
+function Utility.starts_with(s, t)
+    if not (type(s) == "string" and type(t) == "string") then
+        return false
+    end
+    return s:sub(1, #t) == t
+end
+]]>
+</script>
+
+
+
+<script>
+<![CDATA[
+--------------------------------------------------
+-- Plugin Callbacks
+--------------------------------------------------
+
+function OnPluginInstall()
+    Utility.initialize()
+    Utility.display_greeting()
+end
+
+function OnPluginEnable()
+    OnPluginInstall()
+end
+
+function OnPluginClose()
+    Utility.deinitialize()
+end
+
+function OnPluginDisable()
+    OnPluginClose()
+end
+
+function OnPluginBroadcast(msg, id, name, text)
+    if (id == "3e7dedbe37e44942dd46d264") then
+    end
+end
+]]>
+</script>
+
+
+</muclient>
