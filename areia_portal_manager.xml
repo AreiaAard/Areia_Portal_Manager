@@ -280,6 +280,102 @@ end
 
 
 
+<triggers>
+    <trigger
+     match="^You have now joined Global Quest \# (?<id>\d+)\. See 'help gquest' for available commands\.$"
+     enabled="y"
+     script="GQ.join"
+     regexp="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^Global Quest: Global quest \# (?<id>\d+) for levels \d+ to \d+ has now started\.$"
+     group="trigger_group_gq"
+     enabled="n"
+     script="GQ.start"
+     regexp="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^Global Quest: Global quest \# (?<id>\d+) has been won by (?<player>\w+) - \d+(?:nd|st|rd|th) win\.$"
+     group="trigger_group_gq"
+     enabled="n"
+     script="GQ.complete"
+     regexp="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^Global Quest: (?<player>\w+) has completed Global Quest \# (?<id>\d+)\.$"
+     group="trigger_group_gq"
+     enabled="n"
+     script="GQ.complete"
+     regexp="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^Global Quest: Global quest \# (?<id>\d+) \(extended\) is now over\.$"
+     group="trigger_group_gq"
+     enabled="n"
+     script="GQ.incomplete"
+     regexp="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^You are no longer part of Global Quest \# (?<id>\d+) and will be unable to rejoin\.$"
+     group="trigger_group_gq"
+     enabled="n"
+     script="GQ.incomplete"
+     regexp="y"
+     sequence="100"
+    ></trigger>
+</triggers>
+
+<script>
+<![CDATA[
+--------------------------------------------------
+-- GQ
+--------------------------------------------------
+
+GQ = {}
+
+function GQ.initialize()
+    GQ.currentId = nil
+end
+
+function GQ.join(trigger, line, wc)
+    GQ.currentId = tonumber(wc.id)
+    EnableTriggerGroup("trigger_group_gq", true)
+end
+
+function GQ.start(trigger, line, wc)
+    if (tonumber(wc.id) == GQ.currentId) then
+        PortalHandler.enable_type(PortalHandler.PORTAL_TYPE.CHAOS, false)
+    end
+end
+
+function GQ.complete(trigger, line, wc)
+     if (wc.player == gmcp("char.base.name")
+    and tonumber(wc.id) == GQ.currentId) then
+        GQ.finish()
+    end
+end
+
+function GQ.incomplete(trigger, line, wc)
+    if (tonumber(wc.id) == GQ.currentId) then
+        GQ.finish()
+    end
+end
+
+function GQ.finish(trigger, line, wc)
+    GQ.currentId = nil
+    EnableTriggerGroup("trigger_group_gq", false)
+    PortalHandler.enable_type(PortalHandler.PORTAL_TYPE.CHAOS, true)
+end
+]]>
+</script>
+
+
+
 <script>
 <![CDATA[
 --------------------------------------------------
@@ -394,6 +490,7 @@ Utility = {}
 function Utility.initialize()
     local initializers = {
         PortalHandler.initialize,
+        GQ.initialize,
         DB.initialize,
     }
     for _, initializer in ipairs(initializers) do
