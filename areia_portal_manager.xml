@@ -30,6 +30,7 @@
      enabled="y"
      script="PortalHandler.list"
      regexp="y"
+     ignore_case="y"
      sequence="100"
     ></alias>
     <alias
@@ -37,6 +38,7 @@
      enabled="y"
      script="PortalHandler.enable"
      regexp="y"
+     ignore_case="y"
      sequence="100"
     ></alias>
 </aliases>
@@ -44,6 +46,13 @@
 
 
 <triggers>
+    <trigger
+     match="^.+? implodes after its final use\.$"
+     enabled="Y"
+     script="PortalHandler.implode"
+     regexp="y"
+     sequence="100"
+    ></trigger>
 </triggers>
 
 
@@ -238,6 +247,23 @@ function PortalHandler.enable_index(portalType, index, enable)
         "%sabled %s portal #%d with keywords '%s'.",
         enable and "En" or "Dis", long:lower(), index, portal.dir
     ))
+end
+
+function PortalHandler.implode(trigger, line, wc)
+    local uid = gmcp("room.info.num")
+    local sql = [[
+        UPDATE exits SET level = level + %s
+        WHERE fromuid = '*' AND dir LIKE 'luport %%'
+        AND touid = %s AND level <= %s
+    ]]
+    local changes = DB.exec(sql:format(
+        PortalHandler.DISABLE, uid, PortalHandler.DISABLE
+    ))
+    if (changes >= 0) then
+        Utility.plugin_msg(string.format(
+            "Disabled limited-use portal leading to room #%s.", uid
+        ))
+    end
 end
 
 function PortalHandler.get_type(portalType)
