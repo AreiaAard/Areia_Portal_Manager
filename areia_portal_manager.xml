@@ -47,13 +47,100 @@ dofile(GetInfo(60) .. "aardwolf_colors.lua")
 
 
 --------------------------------------------------
--- DBHandler
+-- DB
 --------------------------------------------------
 
-DBHandler = {}
+DB = {}
 
-function DBHandler.initialize()
-    DBHandler.db = nil
+function DB.initialize()
+    DB.db = nil
+end
+
+function DB.open()
+    local directory = GetInfo(66)
+    local world = DB.sanitize_filename(WorldName())
+    local mapperDB = string.format("%s%s.db.fake", directory, world)
+    local db, errcode, errmsg = sqlite3.open(mapperDB)
+    if not (db and db:isopen()) then
+        DB.error_msg("open", errcode, errmsg)
+        return false
+    end
+    DB.db = db
+    return true
+end
+
+function DB.close()
+    if not (DB.db and DB.db:isopen()) then
+        return true
+    end
+    local code = DB.db:close()
+    DB.db = nil
+    if (code == -1) then
+        DB.error_msg("close", code, "Database id not found.")
+    elseif (code == -2) then
+        DB.error_msg("close", code, "Database not open.")
+    end
+    return code == sqlite3.OK
+end
+
+function DB.query(sql)
+    local results = {}
+    if (not DB.open()) then
+        return results
+    end
+    for result in DB.db:nrows(sql) do
+        table.insert(results, result)
+    end
+    DB.close()
+    return results
+end
+
+function DB.exec(sql)
+    local changes = 0
+    local cmd = sql
+    if (type(cmd) == "table") then
+        table.insert(cmd, 1, "BEGIN TRANSACTION")
+        table.insert(cmd, "COMMIT")
+        cmd = table.concat(cmd, ";")
+    end
+    if (not DB.open()) then
+        return changes
+    end
+    if (DB.check(DB.db:exec(cmd))) then
+        changes = DB.db:changes()
+    end
+    DB.close()
+    return changes
+end
+
+function DB.check(code)
+    if (code == sqlite3.OK or code == sqlite3.ROW or code == sqlite3.DONE) then
+        return true
+    end
+    local errmsg = DB.db:errmsg()
+    DB.db:exec("ROLLBACK")
+    DB.error_msg("modify", code, errmsg)
+    return false
+end
+
+function DB.error_msg(action, code, msg)
+    Utility.plugin_msg(string.format(
+        "@RError@w. Failed to %s the mapper database (code %s).", action, code
+    ), msg)
+end
+
+function DB.fixsql(sql)
+    if (type(sql) == "boolean") then
+        return sql and 1 or 0
+    end
+    if (not sql) then
+        return "NULL"
+    end
+    return string.format("'%s'", string.gsub(sql, "'", "''"))
+end
+
+function DB.sanitize_filename(filename)
+    return trim(string.gsub(filename, "[^%w%s()_-]", ""))
 end
 ]]>
 </script>
@@ -70,7 +157,7 @@ Utility = {}
 
 function Utility.initialize()
     local initializers = {
-        DBHandler.initialize,
+        DB.initialize,
     }
     for _, initializer in ipairs(initializers) do
         initializer()
