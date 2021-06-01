@@ -25,6 +25,20 @@
 
 
 <aliases>
+    <alias
+     match="^apm\s+(?:display|li?st?|show)(?:\s+(?<type>\w+))?$"
+     enabled="y"
+     script="PortalHandler.list"
+     regexp="y"
+     sequence="100"
+    ></alias>
+    <alias
+     match="^apm\s+(?<enable>en|dis)able\s+(?<type>\w+)(?:\s+(?<index>\w+))?$"
+     enabled="y"
+     script="PortalHandler.enable"
+     regexp="y"
+     sequence="100"
+    ></alias>
 </aliases>
 
 
@@ -46,6 +60,202 @@ dofile(GetInfo(60) .. "aardwolf_colors.lua")
 
 
 
+--------------------------------------------------
+-- PortalHandler
+--------------------------------------------------
+
+PortalHandler = {}
+
+function PortalHandler.initialize()
+    PortalHandler.DISABLE = 500
+    PortalHandler.PORTAL_TYPE = {
+        ["CHAOS"] = "CH", ["HERO_ONLY"] = "HO", ["LIMITED_USE"] = "LU",
+        ["NOSAVE"] = "NS", ["STANDARD"] = "ST"
+    }
+end
+
+function PortalHandler.list(alias, line, wc)
+    local arg = wc.type:lower()
+    if (arg == "" or arg == "all") then
+        PortalHandler.list_all()
+        return
+    end
+    local short = PortalHandler.get_type(arg)
+    if (not short) then
+        Utility.plugin_msg("Invalid portal type: @R" .. arg)
+        return
+    end
+    PortalHandler.list_type(short)
+end
+
+function PortalHandler.list_all()
+    PortalHandler.list_type(PortalHandler.PORTAL_TYPE.STANDARD)
+    PortalHandler.list_type(PortalHandler.PORTAL_TYPE.CHAOS)
+    PortalHandler.list_type(PortalHandler.PORTAL_TYPE.HEROONLY)
+    PortalHandler.list_type(PortalHandler.PORTAL_TYPE.LIMITED_USE)
+    PortalHandler.list_type(PortalHandler.PORTAL_TYPE.NOSAVE)
+end
+
+function PortalHandler.list_type(portalType)
+    local short, long = PortalHandler.get_type(portalType)
+    local title = Utility.pascal_case(long) .. " Portals:"
+    local dirPattern = DB.fixsql(short .. "port %") -- eg, to match chport xxx
+    local sql = [[
+        SELECT rooms.name as room, rooms.area, exits.touid,
+        exits.fromuid, exits.dir, exits.level
+        FROM exits LEFT OUTER JOIN rooms ON rooms.uid=exits.touid
+        WHERE exits.fromuid='*' AND exits.dir LIKE %s
+        ORDER BY rooms.area,exits.touid
+    ]]
+    local portals = DB.query(sql:format(dirPattern))
+    PortalHandler.display_list(title, portals)
+end
+
+function PortalHandler.display_list(title, portals)
+    local charLevel = tonumber(gmcp("char.status.level")) or 1
+    local charTier = tonumber(gmcp("char.base.tier")) or 0
+    local effectiveCharLevel = charTier * 10 + charLevel
+    local seperator = "+-----+------------+----------------------+-------+----------------------+-----+"
+    local header = "|   # | area       | room name            |  vnum | portal commands      | lvl |"
+    Utility.print(title)
+    Utility.print(seperator)
+    Utility.print(header)
+    Utility.print(seperator)
+    for i, portal in ipairs(portals) do
+        local area = portal.area or "N/A"
+        local room = portal.room or "N/A"
+        local level = portal.level
+        local disabled = level >= PortalHandler.DISABLE
+        -- now that we know whether the portal is disabled, we set the level to
+        -- the actual portal's level for displaying
+        level = disabled and level - PortalHandler.DISABLE or level
+        local text = string.format(
+            "|%s%+3.3s | %-10.10s | %-20.20s | %+5.5s | %-20.20s | %+3.3s |",
+            disabled and "x" or " ", i, area, room, portal.touid, portal.dir, level
+        )
+        if (level > effectiveCharLevel) then
+            -- char cannot use this portal, so simply print it
+            Utility.print((disabled and "@w" or "@G") .. text)
+        else
+            -- char can use the portal; make the line clickable
+            local action = "mapper goto " .. portal.touid
+            local hint = string.format("Click here to run to %s\n[ %s ]", room, portal.dir)
+            local textColor = disabled and "silver" or "lightgreen"
+            Hyperlink(action, text, hint, textColor, "black", false, true)
+            Note("")
+        end
+    end
+    Utility.print("+-------------------------------------------------+\n")
+end
+
+function PortalHandler.enable(alias, line, wc)
+    local short = PortalHandler.get_type(wc.type)
+    if (not short) then
+        Utility.plugin_msg("Invalid portal type: @R" .. arg)
+        return
+    end
+    local index = wc.index
+    local enable = wc.enable == "en"
+    if (index == "") then
+        PortalHandler.enable_type(short, enable)
+        return
+    end
+    index = tonumber(index)
+    if (not index) then
+        Utility.plugin_msg(string.format(
+            "Invalid index: @R%s@w. Must be a number.", wc.index
+        ))
+        return
+    end
+    PortalHandler.enable_index(short, index, enable)
+end
+
+function PortalHandler.enable_type(portalType, enable)
+    if (enable == nil) then
+        enable = true
+    end
+    local short, long = PortalHandler.get_type(portalType)
+    local dirPattern = DB.fixsql(short .. "port %")
+    local sql = [[
+        UPDATE exits SET level = level %s %s
+        WHERE fromuid='*' AND dir LIKE %s AND level%s%s
+    ]]
+    local changes = DB.exec(sql:format(
+        enable and "-" or "+", -- reduce level if enabling; otherwise increase
+        PortalHandler.DISABLE, -- change level by this much
+        dirPattern, -- for exits that use this format
+        enable and ">=" or "<", -- if enable, only affect disabled portals and vice versa
+        PortalHandler.DISABLE -- level threshold
+    ))
+    if (changes == 0) then
+        Utility.plugin_msg(string.format(
+            "No portals modified. Either all %s portals", long:lower()
+        ), string.format(
+            "are already %sabled, or something went wrong.",
+            enable and "en" or "dis"
+        ))
+        return
+    end
+    Utility.plugin_msg(string.format(
+        "%sabled %d %s portal%s.",
+        enable and "En" or "Dis", changes,
+        long:lower(), changes == 1 and "" or "s"
+    ))
+end
+
+function PortalHandler.enable_index(portalType, index, enable)
+    if (enable == nil) then
+        enable = true
+    end
+    index = tonumber(index) or 1
+    local short, long = PortalHandler.get_type(portalType)
+    local dirPattern = DB.fixsql(short .. "port %")
+    local sql = [[
+        SELECT rooms.name as room, rooms.area, exits.touid,
+        exits.fromuid, exits.dir, exits.level
+        FROM exits LEFT OUTER JOIN rooms ON rooms.uid=exits.touid
+        WHERE exits.fromuid='*' AND exits.dir LIKE %s
+        ORDER BY rooms.area,exits.touid
+    ]]
+    local portals = DB.query(sql:format(dirPattern))
+    local portal = portals[index]
+    if (not portal) then
+        Utility.plugin_msg(string.format(
+            "Could not find portal #%d in the list of %s portals.",
+            index, long:lower()
+        ))
+        return
+    end
+    local sql = [[
+        UPDATE exits SET level = level %s %s
+        WHERE fromuid='*' AND dir = %s AND level%s%s
+    ]]
+    local changes = DB.exec(sql:format(
+        enable and "-" or "+", PortalHandler.DISABLE, DB.fixsql(portal.dir),
+        enable and ">=" or "<", PortalHandler.DISABLE
+    ))
+    Utility.plugin_msg(string.format(
+        "%sabled %s portal #%d with keywords '%s'.",
+        enable and "En" or "Dis", long:lower(), index, portal.dir
+    ))
+end
+
+function PortalHandler.get_type(portalType)
+    portalType = portalType:upper()
+    for long, short in pairs(PortalHandler.PORTAL_TYPE) do
+        if (portalType == long or portalType == short) then
+            return short:lower(), long:gsub("_", "-"):lower()
+        end
+    end
+    return nil, nil
+end
+]]>
+</script>
+
+
+
+<script>
+<![CDATA[
 --------------------------------------------------
 -- DB
 --------------------------------------------------
@@ -157,6 +367,7 @@ Utility = {}
 
 function Utility.initialize()
     local initializers = {
+        PortalHandler.initialize,
         DB.initialize,
     }
     for _, initializer in ipairs(initializers) do
@@ -184,6 +395,15 @@ function Utility.second_msg(str)
 end
 
 function Utility.display_greeting()
+end
+
+function Utility.pascal_case(str)
+    str = str:gsub("(%a)([%w_']*)",
+        function(first,remainder)
+            return string.format("%s%s", first:upper(), remainder:lower())
+        end
+    )
+    return str
 end
 
 function Utility.starts_with(s, t)
