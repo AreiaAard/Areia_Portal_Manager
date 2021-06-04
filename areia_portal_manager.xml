@@ -41,6 +41,22 @@
      ignore_case="y"
      sequence="100"
     ></alias>
+    <alias
+     match="^apm\s+port(?:\s+(?<arg>.+))?$"
+     enabled="y"
+     script="PortalHandler.use_set_script"
+     regexp="y"
+     ignore_case="y"
+     sequence="100"
+    ></alias>
+    <alias
+     match="^(?<type>ch|ho|lu|ns|st)?port\s+(?<id>.+)$"
+     enabled="y"
+     script="PortalHandler.use_wrapper"
+     regexp="y"
+     ignore_case="y"
+     sequence="100"
+    ></alias>
 </aliases>
 
 
@@ -76,6 +92,7 @@ dofile(GetInfo(60) .. "aardwolf_colors.lua")
 PortalHandler = {}
 
 function PortalHandler.initialize()
+    PortalHandler.use_define()
     PortalHandler.DISABLE = 500
     PortalHandler.PORTAL_TYPE = {
         ["CHAOS"] = "CH", ["HERO_ONLY"] = "HO", ["LIMITED_USE"] = "LU",
@@ -247,6 +264,86 @@ function PortalHandler.enable_index(portalType, index, enable)
         "%sabled %s portal #%d with keywords '%s'.",
         enable and "En" or "Dis", long:lower(), index, portal.dir
     ))
+end
+
+function PortalHandler.use_wrapper(alias, line, wc)
+    PortalHandler.use(wc.type:lower(), wc.id)
+end
+
+function PortalHandler.use_set_script(alias, line, wc)
+    local arg = wc.arg
+    if (arg:lower() == "default") then
+        var.useScript = nil
+    
+    elseif (arg == "...") then
+        local firstScriptLine = "local ptype, id = ...\n"
+        local msg = "Enter the script to run whenever you use a portal.\n" ..
+            "(The variables `ptype` and `id` are available here.)"
+        local title = "Enter Portal Script"
+        -- default is the current script, but hide the secret first line
+        local default = var.useScript or PortalHandler.use_default()
+        default = default:gsub(firstScriptLine, "")
+        default = default:gsub("\n", "\r\n") -- make newlines show correctly...
+        local extras = {}
+        extras.validate = function(str) return str ~= "" end
+        local res = utils.editbox(msg, title, default, nil, nil, extras)
+        if (not res) then
+            Utility.plugin_msg("Script input canceled.")
+            return
+        end
+        if (not Utility.starts_with(res, firstScriptLine)) then
+            res = firstScriptLine .. res -- add the secret first line back
+        end
+     var.useScript = res
+    
+    elseif (arg ~= "") then
+        var.useScript = string.format("local ptype, id = ...\nExecute('%s')", arg)
+    end
+    
+    if (PortalHandler.use_define()) then
+        PortalHandler.use_display()
+    end
+end
+
+function PortalHandler.use_default()
+    return "local ptype, id = ...\n" ..
+        "if (tonumber(id)) then\n" ..
+        "    Execute('dinv portal use id ' .. id)\n" ..
+        "else\n" ..
+        "    Execute('dinv portal use key ' .. id)\n" ..
+        "end"
+end
+
+function PortalHandler.use_define()
+    local script = var.useScript
+    if (not script) then
+        script = PortalHandler.use_default()
+        if (not GetPluginInfo("88c86ea252fc1918556df9fe", 17)) then
+            Utility.plugin_msg(
+                "Set to use default script for portal usage, but DINV is not",
+                "enabled. Install/enable DINV, or set a different script."
+            )
+        end
+    end
+    local success = true
+    local func, errmsg = loadstring(script)
+    if (not func) then
+        success = false
+        Utility.plugin_msg("Error found in this script:", errmsg)
+        func = function() Utility.plugin_msg("No script set to use portals.") end
+    end
+    PortalHandler.use = func
+    return success
+end
+
+function PortalHandler.use_display()
+    local script = var.useScript or PortalHandler.use_default()
+    local scriptLines = utils.split(script, "\n")
+    table.remove(scriptLines, 1) -- hide the secret first line
+    Utility.plugin_msg("Portal usage script:")
+    for _, line in ipairs(scriptLines) do
+        Utility.second_msg("@C" .. line)
+    end
 end
 
 function PortalHandler.implode(trigger, line, wc)
