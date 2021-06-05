@@ -386,6 +386,14 @@ end
      sequence="100"
     ></trigger>
     <trigger
+     match="^Showing Global Quest \# (?<id>\d+) for levels \d+ to \d+.*:$"
+     group="trigger_group_gq"
+     enabled="n"
+     script="GQ.in_progress"
+     regexp="y"
+     sequence="100"
+    ></trigger>
+    <trigger
      match="^Global Quest: Global quest \# (?<id>\d+) for levels \d+ to \d+ has now started\.$"
      group="trigger_group_gq"
      enabled="n"
@@ -437,15 +445,27 @@ GQ = {}
 
 function GQ.initialize()
     GQ.currentId = nil
+    GQ.started = false
 end
 
 function GQ.join(trigger, line, wc)
     GQ.currentId = tonumber(wc.id)
     EnableTriggerGroup("trigger_group_gq", true)
+    -- Check whether the GQ has already started before we joined, in which case
+    -- GQ.start won't have been called
+    SendNoEcho("gq progress")
+end
+
+function GQ.in_progress(trigger, line, wc)
+    if (tonumber(wc.id) == GQ.currentId and not GQ.started) then
+        GQ.started = true
+        PortalHandler.enable_type(PortalHandler.PORTAL_TYPE.CHAOS, false)
+    end
 end
 
 function GQ.start(trigger, line, wc)
     if (tonumber(wc.id) == GQ.currentId) then
+        GQ.started = true
         PortalHandler.enable_type(PortalHandler.PORTAL_TYPE.CHAOS, false)
     end
 end
@@ -465,6 +485,7 @@ end
 
 function GQ.finish(trigger, line, wc)
     GQ.currentId = nil
+    GQ.started = false
     EnableTriggerGroup("trigger_group_gq", false)
     PortalHandler.enable_type(PortalHandler.PORTAL_TYPE.CHAOS, true)
 end
