@@ -63,9 +63,9 @@
 
 <triggers>
     <trigger
-     match="^.+? implodes after its final use\.$"
+     match="^WHOOOOOOOOOOOOSH!$"
      enabled="Y"
-     script="PortalHandler.implode"
+     script="PortalHandler.enter"
      regexp="y"
      sequence="100"
     ></trigger>
@@ -346,7 +346,15 @@ function PortalHandler.use_display()
     end
 end
 
-function PortalHandler.implode(trigger, line, wc)
+function PortalHandler.enter(trigger, line, wc)
+    wait.make(PortalHandler.implode_monitor)
+end
+
+function PortalHandler.implode_monitor()
+    local line = wait.regexp("^(.+?) implodes after its final use\\.$", 5)
+    if (not line) then
+        return
+    end
     local uid = gmcp("room.info.num")
     local sql = [[
         UPDATE exits SET level = level + %s
