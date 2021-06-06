@@ -267,7 +267,7 @@ function PortalHandler.enable_index(portalType, index, enable)
 end
 
 function PortalHandler.use_wrapper(alias, line, wc)
-    PortalHandler.use(wc.type:lower(), wc.id)
+    PortalHandler.use(wc.type:lower(), wc.id, Invmon.get_portal_slot_item())
 end
 
 function PortalHandler.use_set_script(alias, line, wc)
@@ -276,9 +276,9 @@ function PortalHandler.use_set_script(alias, line, wc)
         var.useScript = nil
     
     elseif (arg == "...") then
-        local firstScriptLine = "local ptype, id = ...\n"
+        local firstScriptLine = "local ptype, id, worn = ...\n"
         local msg = "Enter the script to run whenever you use a portal.\n" ..
-            "(The variables `ptype` and `id` are available here.)"
+            "(The variables `ptype`, `id`, and `worn` are available here.)"
         local title = "Enter Portal Script"
         -- default is the current script, but hide the secret first line
         local default = var.useScript or PortalHandler.use_default()
@@ -297,7 +297,7 @@ function PortalHandler.use_set_script(alias, line, wc)
      var.useScript = res
     
     elseif (arg ~= "") then
-        var.useScript = string.format("local ptype, id = ...\nExecute('%s')", arg)
+        var.useScript = string.format("local ptype, id, worn = ...\nExecute('%s')", arg)
     end
     
     if (PortalHandler.use_define()) then
@@ -306,7 +306,7 @@ function PortalHandler.use_set_script(alias, line, wc)
 end
 
 function PortalHandler.use_default()
-    return "local ptype, id = ...\n" ..
+    return "local ptype, id, worn = ...\n" ..
         "if (tonumber(id)) then\n" ..
         "    Execute('dinv portal use id ' .. id)\n" ..
         "else\n" ..
@@ -597,6 +597,146 @@ end
 
 
 
+<triggers>
+    <trigger
+     match="^\{eqdata\}$"
+     name="trigger_eqdata_start"
+     enabled="n"
+     script="Invmon.eqdata_start"
+     regexp="y"
+     omit_from_output="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^(?<id>\d+),(?<flags>[A-Z]*),(?<desc>.+?),(?<level>\d{1,3}),(?<type>\d{1,2}),(?<unique>1|0),(?<worn>-?\d{1,2}),(?<timer>-?\d+)$"
+     name="trigger_eqdata_item"
+     enabled="n"
+     script="Invmon.eqdata_item"
+     regexp="y"
+     omit_from_output="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^\{/eqdata\}$"
+     name="trigger_eqdata_end"
+     enabled="n"
+     script="Invmon.eqdata_end"
+     regexp="y"
+     omit_from_output="y"
+     sequence="100"
+    ></trigger>
+    
+    <trigger
+     match="^\{invmon\}(?<action>\d{1,2}),(?<id>\d+),(?<container>-?\d+),(?<worn>-?\d{1,2})$"
+     enabled="y"
+     script="Invmon.event"
+     regexp="y"
+     omit_from_output="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^\{invitem\}.+$"
+     enabled="y"
+     regexp="y"
+     omit_from_output="y"
+     sequence="100"
+    ></trigger>
+    <trigger
+     match="^You will (?<setting>now|no longer) see inventory update tags\.$"
+     enabled="y"
+     script="Invmon.toggled"
+     regexp="y"
+     sequence="100"
+    ></trigger>
+</triggers>
+
+
+<script>
+<![CDATA[
+--------------------------------------------------
+-- Invmon
+--------------------------------------------------
+
+Invmon = {}
+
+function Invmon.initialize()
+    Invmon.portalWish = var.portalWish == "1" and true or false
+    Invmon.set_portal_slot_item()
+end
+
+function Invmon.at_first_active()
+    Execute("sendgmcp config invmon yes")
+    Invmon.eqdata_request()
+end
+
+function Invmon.eqdata_request()
+    EnableTrigger("trigger_eqdata_start", true)
+    SendNoEcho("eqdata")
+end
+
+function Invmon.eqdata_start(trigger, line, wc)
+    EnableTrigger("trigger_eqdata_start", false)
+    EnableTrigger("trigger_eqdata_item", true)
+    EnableTrigger("trigger_eqdata_end", true)
+end
+
+function Invmon.eqdata_item(trigger, line, wc)
+    local worn = tonumber(wc.worn)
+    if ((worn == 25 or worn == 26) and not Invmon.portalWish) then -- second/hold
+        Invmon.set_portal_slot_item(wc.id)
+    elseif (worn == 31) then -- portal slot
+        Invmon.set_portal_slot_item(wc.id)
+        if (not Invmon.portalWish) then
+            -- Item is worn in portal location, so we must have the wish
+            Invmon.set_portal_wish(true)
+        end
+    end
+end
+
+function Invmon.eqdata_end(trigger, line, wc)
+    EnableTrigger("trigger_eqdata_item", false)
+    EnableTrigger("trigger_eqdata_end", false)
+end
+
+function Invmon.event(trigger, line, wc)
+    local actionWorn = wc.action == "2" and true or false
+    local worn = tonumber(wc.worn)
+    if ((worn == 25 or worn == 26) and not Invmon.portalWish) then -- second/hold
+        Invmon.set_portal_slot_item(actionWorn and wc.id or "")
+    elseif (worn == 31) then -- portal slot
+        Invmon.set_portal_slot_item(actionWorn and wc.id or "")
+        if (not Invmon.portalWish) then
+            -- Item is/was worn in portal location, so we must have the wish
+            Invmon.set_portal_wish(true)
+        end
+    end
+end
+
+function Invmon.toggled(trigger, line, wc)
+    if (wc.setting == "no longer") then
+        Utility.plugin_msg("Invmon is required to function fully.",
+            "Submit @Yinvmon @wto re-enable it."
+        )
+    end
+end
+
+function Invmon.get_portal_slot_item()
+    return Invmon.portalSlotItem
+end
+
+function Invmon.set_portal_slot_item(id)
+    Invmon.portalSlotItem = id or ""
+end
+
+function Invmon.set_portal_wish(setting)
+    Invmon.portalWish = setting and true or false
+    var.portalWish = Invmon.portalWish and 1 or 0
+end
+]]>
+</script>
+
+
+
 <script>
 <![CDATA[
 --------------------------------------------------
@@ -609,6 +749,10 @@ function GMCPHandler.initialize()
     GMCPHandler.initialized = false
     GMCPHandler.char = {}
     GMCPHandler.char.level = tonumber(var.charLevel) or 0
+end
+
+function GMCPHandler.at_first_active()
+    Invmon.at_first_active()
 end
 
 function GMCPHandler.level_change(newLevel)
@@ -638,6 +782,7 @@ function Utility.initialize()
         PortalHandler.initialize,
         GQ.initialize,
         DB.initialize,
+        Invmon.initialize,
         GMCPHandler.initialize,
     }
     for _, initializer in ipairs(initializers) do
@@ -716,9 +861,15 @@ end
 function OnPluginBroadcast(msg, id, name, text)
     if (id == "3e7dedbe37e44942dd46d264") then
         if (not GMCPHandler.initialized) then
+            if (text ~= "char.status") then
+                Send_GMCP_Packet("request char")
+                return
+            end
+            if (gmcp("char.status.state") ~= "3") then
+                return
+            end
             GMCPHandler.initialized = true
-            Send_GMCP_Packet("request char")
-            return
+            GMCPHandler.at_first_active()
         end
         if (text == "char.status") then
             local level = tonumber(gmcp("char.status.level"))
