@@ -600,6 +600,34 @@ end
 <script>
 <![CDATA[
 --------------------------------------------------
+-- GMCPHandler
+--------------------------------------------------
+
+GMCPHandler = {}
+
+function GMCPHandler.initialize()
+    GMCPHandler.initialized = false
+    GMCPHandler.char = {}
+    GMCPHandler.char.level = tonumber(var.charLevel) or 0
+end
+
+function GMCPHandler.level_change(newLevel)
+    if (GMCPHandler.char.level <= 199 and newLevel >= 200) then
+        PortalHandler.enable_type(PortalHandler.PORTAL_TYPE.HERO_ONLY, true)
+    elseif (GMCPHandler.char.level >= 200 and newLevel <= 199) then
+        PortalHandler.enable_type(PortalHandler.PORTAL_TYPE.HERO_ONLY, false)
+    end
+    GMCPHandler.char.level = newLevel
+    var.charLevel = newLevel
+end
+]]>
+</script>
+
+
+
+<script>
+<![CDATA[
+--------------------------------------------------
 -- Utility
 --------------------------------------------------
 
@@ -610,6 +638,7 @@ function Utility.initialize()
         PortalHandler.initialize,
         GQ.initialize,
         DB.initialize,
+        GMCPHandler.initialize,
     }
     for _, initializer in ipairs(initializers) do
         initializer()
@@ -667,6 +696,9 @@ end
 function OnPluginInstall()
     Utility.initialize()
     Utility.display_greeting()
+    if (IsConnected()) then
+        Send_GMCP_Packet("request char")
+    end
 end
 
 function OnPluginEnable()
@@ -683,6 +715,17 @@ end
 
 function OnPluginBroadcast(msg, id, name, text)
     if (id == "3e7dedbe37e44942dd46d264") then
+        if (not GMCPHandler.initialized) then
+            GMCPHandler.initialized = true
+            Send_GMCP_Packet("request char")
+            return
+        end
+        if (text == "char.status") then
+            local level = tonumber(gmcp("char.status.level"))
+            if (level ~= GMCPHandler.char.level) then
+                GMCPHandler.level_change(level)
+            end
+        end
     end
 end
 ]]>
