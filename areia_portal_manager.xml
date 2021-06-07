@@ -8,7 +8,7 @@
    id="8e5f000d72c9f11a6debbc6b"
    language="Lua"
    purpose="Streamline use of chaos, limited-use, and other portals"
-   save_state="n"
+   save_state="y"
    date_written="2021-05-30 07:00:00"
    requires="5.06"
    version="0.00"
@@ -117,7 +117,7 @@ end
 function PortalHandler.list_all()
     PortalHandler.list_type(PortalHandler.PORTAL_TYPE.STANDARD)
     PortalHandler.list_type(PortalHandler.PORTAL_TYPE.CHAOS)
-    PortalHandler.list_type(PortalHandler.PORTAL_TYPE.HEROONLY)
+    PortalHandler.list_type(PortalHandler.PORTAL_TYPE.HERO_ONLY)
     PortalHandler.list_type(PortalHandler.PORTAL_TYPE.LIMITED_USE)
     PortalHandler.list_type(PortalHandler.PORTAL_TYPE.NOSAVE)
 end
@@ -276,14 +276,13 @@ function PortalHandler.use_set_script(alias, line, wc)
         var.useScript = nil
     
     elseif (arg == "...") then
-        local firstScriptLine = "local ptype, id, worn = ...\n"
+        local firstScriptLine = "local ptype, id, worn = ...\r\n"
         local msg = "Enter the script to run whenever you use a portal.\n" ..
             "(The variables `ptype`, `id`, and `worn` are available here.)"
         local title = "Enter Portal Script"
         -- default is the current script, but hide the secret first line
         local default = var.useScript or PortalHandler.use_default()
         default = default:gsub(firstScriptLine, "")
-        default = default:gsub("\n", "\r\n") -- make newlines show correctly...
         local extras = {}
         extras.validate = function(str) return str ~= "" end
         local res = utils.editbox(msg, title, default, nil, nil, extras)
@@ -297,7 +296,7 @@ function PortalHandler.use_set_script(alias, line, wc)
      var.useScript = res
     
     elseif (arg ~= "") then
-        var.useScript = string.format("local ptype, id, worn = ...\nExecute('%s')", arg)
+        var.useScript = string.format("local ptype, id, worn = ...\r\nExecute('%s')", arg)
     end
     
     if (PortalHandler.use_define()) then
@@ -306,11 +305,11 @@ function PortalHandler.use_set_script(alias, line, wc)
 end
 
 function PortalHandler.use_default()
-    return "local ptype, id, worn = ...\n" ..
-        "if (tonumber(id)) then\n" ..
-        "    Execute('dinv portal use id ' .. id)\n" ..
-        "else\n" ..
-        "    Execute('dinv portal use key ' .. id)\n" ..
+    return "local ptype, id, worn = ...\r\n" ..
+        "if (tonumber(id)) then\r\n" ..
+        "    Execute('dinv portal use id ' .. id)\r\n" ..
+        "else\r\n" ..
+        "    Execute('dinv portal use key ' .. id)\r\n" ..
         "end"
 end
 
@@ -338,7 +337,9 @@ end
 
 function PortalHandler.use_display()
     local script = var.useScript or PortalHandler.use_default()
-    local scriptLines = utils.split(script, "\n")
+    -- convoluted extra gsub here to make utils.split happy, as it won't split
+    -- by two chars \r\n
+    local scriptLines = utils.split(script:gsub("\r\n", "\n"), "\n")
     table.remove(scriptLines, 1) -- hide the secret first line
     Utility.plugin_msg("Portal usage script:")
     for _, line in ipairs(scriptLines) do
@@ -410,7 +411,7 @@ end
      sequence="100"
     ></trigger>
     <trigger
-     match="^Global Quest: Global quest \# (?<id>\d+) has been won by (?<player>\w+) - \d+(?:nd|st|rd|th) win\.$"
+     match="^Global Quest: Global Quest \# (?<id>\d+) has been won by (?<player>\w+) - \d+(?:nd|st|rd|th) win\.$"
      group="trigger_group_gq"
      enabled="n"
      script="GQ.complete"
@@ -517,7 +518,7 @@ end
 function DB.open()
     local directory = GetInfo(66)
     local world = DB.sanitize_filename(WorldName())
-    local mapperDB = string.format("%s%s.db.fake", directory, world)
+    local mapperDB = string.format("%s%s.db", directory, world)
     local db, errcode, errmsg = sqlite3.open(mapperDB)
     if not (db and db:isopen()) then
         DB.error_msg("open", errcode, errmsg)
