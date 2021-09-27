@@ -177,7 +177,7 @@ end
 function PortalHandler.enable(alias, line, wc)
     local short = PortalHandler.get_type(wc.type)
     if (not short) then
-        Utility.plugin_msg("Invalid portal type: @R" .. arg)
+        Utility.plugin_msg("Invalid portal type: @R" .. wc.type)
         return
     end
     local index = wc.index
@@ -503,6 +503,206 @@ function GQ.finish(trigger, line, wc)
     GQ.started = false
     EnableTriggerGroup("trigger_group_gq", false)
     PortalHandler.enable_type(PortalHandler.PORTAL_TYPE.CHAOS, true)
+end
+]]>
+</script>
+
+
+
+<aliases>
+    <alias
+     match="^apm\s+help$"
+     enabled="y"
+     script="Help.main"
+     regexp="y"
+     ignore_case="y"
+     sequence="100"
+    >
+    </alias>
+    <alias
+     match="^apm\s+help\s+general$"
+     enabled="y"
+     script="Help.general"
+     regexp="y"
+     ignore_case="y"
+     sequence="100"
+    >
+    </alias>
+    <alias
+     match="^apm\s+help\s+display$"
+     enabled="y"
+     script="Help.display"
+     regexp="y"
+     ignore_case="y"
+     sequence="100"
+    >
+    </alias>
+    <alias
+     match="^apm\s+help\s+(?:en|dis)able$"
+     enabled="y"
+     script="Help.enable"
+     regexp="y"
+     ignore_case="y"
+     sequence="100"
+    >
+    </alias>
+    <alias
+     match="^apm\s+help\s+port$"
+     enabled="y"
+     script="Help.port"
+     regexp="y"
+     ignore_case="y"
+     sequence="100"
+    >
+    </alias>
+    <alias
+     match="^apm\s+help\s+use$"
+     enabled="y"
+     script="Help.use"
+     regexp="y"
+     ignore_case="y"
+     sequence="100"
+    >
+    </alias>
+</aliases>
+
+
+
+<script>
+<![CDATA[
+--------------------------------------------------
+-- Help
+--------------------------------------------------
+
+Help = {}
+
+function Help.initialize()
+end
+
+function Help.main()
+    local hint = "Click to view helpfile"
+    local fore1 = "yellow"
+    local fore2 = "silver"
+    local back = "black"
+    Utility.print("                         @YPortal Manager Help -- Topics")
+    Utility.print("================================================================================")
+    Hyperlink("apm help general", "apm help general", hint, fore1, back, false)
+    ColourTell(fore2, back, ": General plugin info")
+    Note("")
+    Hyperlink("apm help display", "apm help display", hint, fore1, back, false)
+    ColourTell(fore2, back, ": Display a list of portals")
+    Note("")
+    Hyperlink("apm help enable", "apm help enable", hint, fore1, back, false)
+    ColourTell(fore2, back, ":  Toggle particular portals or all portals of a particular type")
+    Note("")
+    Hyperlink("apm help port", "apm help port", hint, fore1, back, false)
+    ColourTell(fore2, back, ":    Define your own portal use script")
+    Note("")
+    Hyperlink("apm help use", "apm help use", hint, fore1, back, false)
+    ColourTell(fore2, back, ":     Use (or map) a portal")
+    Note("")
+end
+
+function Help.general()
+    Utility.print("                      @YPortal Manager Help -- General Info")
+    Utility.print("================================================================================")
+    Utility.print("APM is designed to help more easily manage different types of portals in the")
+    Utility.print("game. Sometimes You cannot use a portal under certain conditions, but you don't")
+    Utility.print("want to have to map and unmap them all the time. The script can help here. It")
+    Utility.print("deals with five types of portals:")
+    Utility.print("1. Chaos (@Ych@w): Normal (i.e., non-golden) chaos portals. These you cannot use")
+    Utility.print("    during global quests.")
+    Utility.print("2. Hero-Only (@Yho@w): Epic-area portals that you can use only at level 200 or 201,")
+    Utility.print("    regardless of your tier.")
+    Utility.print("3. Limited-Use (@Ylu@w): Portals that may be used only a certain number of times")
+    Utility.print("    before they implode.")
+    Utility.print("4. Nosave (@Yns@w): Portals that are destroyed if left in inventory when you quit")
+    Utility.print("    the game.")
+    Utility.print("5. Standard (@Yst@w): All other portals, which have no limitations.")
+    Utility.print("Note the shorthand version of each portal type in parens above. This is what")
+    Utility.print("you'll use to refer to that portal type in an APM command. For example, to")
+    Utility.print("display all your registered nosave portals, you would type @Yapm display ns@w.")
+    Utility.print("This script does require that you use a particular command to map your portals")
+    Utility.print("in the Aard mapper. The command is @Y[ch|ho|lu|ns|st]port ...@w. This is how the")
+    Utility.print("plugin differentiates handling various portal types. Check @Yapm help use @wfor")
+    Utility.print("more info on this.")
+    Utility.print("Because you are forced to use this command to map your portals, the plugin")
+    Utility.print("allows you to define exactly what the command does at runtime. @Yapm help port")
+    Utility.print("explains more.")
+    Utility.print("Once you have defined the portal command and mapped your portals accordingly,")
+    Utility.print("you're ready to go.")
+end
+
+function Help.display()
+Utility.print("                 @YPortal Manager Help -- Displaying Portals List")
+    Utility.print("================================================================================")
+    Utility.print("    Syntax: @Yapm display [<ch|ho|lu|ns|st]>")
+    Utility.print("This shows a list of all portals if no arguement is given, or all portals of")
+    Utility.print("the given type. For instance, to view the hero-only portals you have registered")
+    Utility.print("in the mapper, you would type @Yapm display ho@w. Simply type @Yapm display @wto view")
+    Utility.print("all the portals recognized by APM.")
+    Utility.print("If a portal entry begins with an @Yx@w, that portal is currently disabled by APM and will not be used in mapper runto.")
+end
+
+function Help.enable()
+    Utility.print("                    @YPortal Manager Help -- Toggling Portals")
+    Utility.print("================================================================================")
+    Utility.print("    Syntax: @Yapm <enable|disable> <ch|ho|lu|ns|st> [index]")
+    Utility.print("Toggle a particular portal or all portals of a particular type. For example,")
+    Utility.print("say you're logging out of the game for the night but don't want to lose your")
+    Utility.print("nosave portals. Simply put them in a safe place and then enter @Yapm disable ns@w.")
+    Utility.print("Next time you log in, type @Yapm enable ns @wto enable them for use once more")
+    Utility.print("(and be sure to pick them up again). This process itself can easily be added to")
+    Utility.print("your login/logout aliases.")
+    Utility.print("Note that, in practice, nosave portals are the only ones you should need to")
+    Utility.print("enable and disable yourself. The plugin handles tracking your level, GQ status,")
+    Utility.print("etc. and automatically toggles relevant portal types accordingly.")
+    Utility.print("If you wish to toggle a single portal, simply specify its index. For example,")
+    Utility.print("@Yapm disable st 3 @wdisables your third standard portal. You can find a portal's")
+    Utility.print("index with the @Yapm display @wcommand.")
+end
+
+function Help.port()
+    Utility.print("                 @YPortal Manager Help -- Defining Portal Script")
+    Utility.print("================================================================================")
+    Utility.print("    Syntax: @Yapm port ...")
+    Utility.print("Because you need to map @Ystport ...@w, @Ynsport ...@w, etc. commands to register your")
+    Utility.print("portals with APM, the script allows you to define what exactly those commands")
+    Utility.print("do at runtime (i.e., when it's time to actually use a portal). By default, APM")
+    Utility.print("runs a script that calls DINV's portal use command. If you are not comfortable")
+    Utility.print("coding your own scripts and use DINV, you shouldn't worry about doing anything")
+    Utility.print("more than this.")
+    Utility.print("For the more adventurous, typing @Yapm port ... @wwill open an edit box in which")
+    Utility.print("you can define your portal script. You have a few variables available to you")
+    Utility.print("within this script by default.")
+    Utility.print("1. ptype: the type of the portal that is being used (e.g., ch for chaos, st for")
+    Utility.print("    standard, etc.)")
+    Utility.print("2. id: the argument given to the ch/ho/stport ... command. For example, if you")
+    Utility.print("    mapped your Academy portal to use stport 1234, then the id variable")
+    Utility.print("    contains 1234.")
+    Utility.print("3. worn: The id of the last portal being worn. You can use this to re-wear a")
+    Utility.print("    stats portal after entering, etc.")
+    Utility.print("You can get quite crazy with this, but here is a fairly simple example of a script you might run:")
+    Utility.print("@Clocal bag = \"1234\"")
+    Utility.print("@CExecute(\"get \" .. id .. \" \" .. bag)")
+    Utility.print("@CExecute(\"wear \" .. id .. \";enter\")")
+    Utility.print("@CExecute(\"wear \" .. worn .. \";put \" .. id .. \" \" .. bag)")
+    Utility.print("This would get the portal from your portal bag with id 1234, wear it, enter,")
+    Utility.print("wear your previous portal, and put this portal back away into its container.")
+end
+
+function Help.use()
+    Utility.print("                @YPortal Manager Help -- Using and Mapping Portals")
+    Utility.print("================================================================================")
+    Utility.print("    Syntax: @Y<ch|ho|lu|ns|st>port <id>")
+    Utility.print("Here is the command you will use to map your portals, as well as to use them")
+    Utility.print("manually yourself. The command has two main arguments.")
+    Utility.print("First, the type of the portal. If it is a chaos portal, use @Ychport@w. If it is a")
+    Utility.print("nosave portal, use @Ynsport@w. And so on.")
+    Utility.print("Second, the portal's id. Say you have a normal chaos portal with an id of 1234.")
+    Utility.print("To map this portal, go to the room to which it leads, enter")
+    Utility.print("@Ymapper portal chport 1234@w, and give it a level lock. Now, mapper runto will use")
+    Utility.print("this chaos portal whenever able.")
 end
 ]]>
 </script>
