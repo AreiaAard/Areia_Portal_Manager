@@ -814,7 +814,7 @@ function Utility.print(str)
 end
 
 function Utility.plugin_msg(str, ...)
-    Utility.print(string.format("[@YPortal_Manager@w]: %s", str))
+    Utility.print(string.format("[@YPortal Manager@w]: %s", str))
     for _, msg in ipairs{...} do
         Utility.second_msg(msg)
     end
