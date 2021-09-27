@@ -300,7 +300,8 @@ function PortalHandler.use_set_script(alias, line, wc)
     end
     
     if (PortalHandler.use_define()) then
-        PortalHandler.use_display()
+        local showFull = arg == "" -- show only partial script unless no arg
+        PortalHandler.use_display(showFull)
     end
 end
 
@@ -335,15 +336,20 @@ function PortalHandler.use_define()
     return success
 end
 
-function PortalHandler.use_display()
+function PortalHandler.use_display(showFull)
     local script = var.useScript or PortalHandler.use_default()
     -- convoluted extra gsub here to make utils.split happy, as it won't split
     -- by two chars \r\n
     local scriptLines = utils.split(script:gsub("\r\n", "\n"), "\n")
     table.remove(scriptLines, 1) -- hide the secret first line
+    local numScriptLines = #scriptLines
+    local numToShow = showFull and numScriptLines or math.min(numScriptLines, 22)
     Utility.plugin_msg("Portal usage script:")
-    for _, line in ipairs(scriptLines) do
-        Utility.second_msg("@C" .. line)
+    for i = 1, numToShow do
+        Utility.second_msg("@C" .. scriptLines[i])
+    end
+    if (numToShow < numScriptLines) then
+        Utility.second_msg("@C...")
     end
 end
 
