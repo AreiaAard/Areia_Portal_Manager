@@ -1025,6 +1025,7 @@ function Utility.second_msg(str)
 end
 
 function Utility.display_greeting()
+    Utility.plugin_msg("Installed. Type @Yapm help @wfor help topics.")
 end
 
 function Utility.pascal_case(str)
